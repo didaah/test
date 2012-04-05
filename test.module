@@ -1,0 +1,142 @@
+<?php
+// $Id$
+
+/**
+ * @file 模块主文件，当模块启用后，系统初始化将载入此文件
+ */
+
+/**
+ * @Implement of hook_menu()
+ * 定义路径
+ */
+function test_menu() {
+  $items = array();
+  
+  $items['test/%'] = array(
+    /**
+     * % 是一个通配符，假如用户访问 test/1，这个时候 % 就是 1，访问 test/abc，% 就是 abc
+     * load_functions 用来处理通配符，下面即表示，将 % 传递给 test_load 函数处理
+     */
+    'load_functions' => array(1 => array('test_load')),
+    /**
+     * access_callback 检查权限的函数，如不指定，则默认使用 user_access
+     */
+    'access_arguments' => array('test view'), // 浏览权限
+    'page_callback' => 'test_page',
+    'page_arguments' => array(1),
+    /**
+     * 一般有路径可访问的都单独定义一个文件，减少模块主文件的体积
+     * 该文件只会在访问该页面时被加载
+     */
+    'file' => 'test.page.inc',
+  );
+  
+  /**
+   * 定义一个路径用来管理字段
+   */
+  $items['admin/test/fields'] = array(
+    'title' => '字段管理',
+    'access_arguments' => array('admin test fields'),
+    'page_callback' => 'test_admin_fields',
+    'file' => 'test.admin.inc',
+  );
+  
+  $items['admin/test/add'] = array(
+    'title' => '发表文章',
+    'access_arguments' => array('test add'),
+    'page_callback' => 'dd_get_form', // 回调表单
+    'page_arguments' => array('test_node_form'),
+    'file' => 'test.form.inc',
+  );
+  
+  $items['admin/test'] = array(
+    'title' => '管理文章',
+    'access_arguments' => array('admin test list'),
+    'page_callback' => 'test_admin_page',
+    'file' => 'test.admin.inc',
+  );
+  
+  /**
+   * 其它编辑、删除可参看 blog模块
+   */
+  return $items;
+}
+
+/**
+ * @Implement of hook_prem()
+ *  向系统注册权限
+ */
+function test_perm() {
+  /**
+   * if (user_access('test add')) { // 这样来判断当前用户是否有该权限 }
+   * 若需要多语言，可使用 t() 函数来生成界面字符串，t('模块名称', '字符串')，不需要多语言
+   * 这是为了同一个词语在不同模块中可以有不同翻译
+   */
+  return array(
+    'test add' => t('test', '发表文章'),
+    'admin test list' => t('test', '管理文章'),
+    'test view' => t('test', '浏览文章'),
+    'admin test fields' => t('test', '管理字段')
+  );
+}
+
+/**
+ * @Implement of hook_system_admin_menus()
+ * 向系统注册管理菜单
+ */
+function test_system_admin_menus() {
+  return array(array(
+    array(t('test', '发表文章'), 'admin/test/add'),
+    array(t('test', '文章 管理'), 'admin/test'),
+    array(t('test', '文章字段'), 'admin/test/fields'),
+  ), t('test', '测试模块'));
+}
+
+/**
+ * @Implement of hook_theme()
+ * 定义 theme
+ */
+function test_theme() {
+  return array(
+    'test' => array(
+      'tpl' => 'test.tpl.php', // 加载的 tpl.php，必须放在模块的 tpl 文件夹内。如复制一份到主题文件夹，优先级比模块文件夹中高
+      'args' => array('test'), // 传递到 tpl.php 中的变量
+    )
+  );
+}
+
+/**
+ * @Implement of hook_field_call_group()
+ * 注册一个 field 组，一个模块可以注册多个 field 组
+ */
+function test_field_call_group($type = NULL) {
+  $groups = array(
+    'my_field' => array( // my_field 即为组的系统名称，自定义。
+      'title' => t('test', '测试字段'), // 组名字
+      'sum' => 0, // 允许在这个组下添加多个少字段， 0 则为不限制
+      'level' => 0, // 是否允许多级分类，0 为不限制，实际上最高为 10 级
+    ),
+    //'test_field' => array( // 可以定义多个字段组
+    //)
+  );
+  return $type ? $groups[$type] : $groups;
+}
+
+/**
+ * 载入文章
+ */
+function test_load($tid) {
+  /**
+   * 数据库连接使用 PDO
+   */
+  if ($test = db_query('SELECT t.*, u.uid, u.name FROM {test} t INNER JOIN {users} u ON t.uid = u.uid WHERE t.tid = ?', array($tid), array('return' => 'one'))) {
+    
+    // 定义一个 nid，用于字段关联
+    $test->nid = $test->tid;
+    
+    // 加载这篇文章下的字段
+    field_get_node_load('test', 'my_field', $test);
+    
+    return $test;
+  }
+}
