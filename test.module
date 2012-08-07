@@ -87,7 +87,7 @@ function test_perm() {
 function test_system_admin_menus() {
   return array(array(
     array(t('test', '发表文章'), 'admin/test/add'),
-    array(t('test', '文章 管理'), 'admin/test'),
+    array(t('test', '文章管理'), 'admin/test'),
     array(t('test', '文章字段'), 'admin/test/fields'),
   ), t('test', '测试模块'));
 }
