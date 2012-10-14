@@ -43,11 +43,12 @@ function test_admin_page() {
     l(t('test', '添加字段'), 'admin/test/fields/add'),
     l(t('test', '文章管理'), 'admin/test'),
   ));
+
   if ($fetch = pager_query('SELECT * FROM {test}', 10)) {
     foreach ($fetch as $o) {
-      $table[] = array(l($o->title, 'test/'.$o->tid), format_date($o->timestamp));
+      $table[] = array(l($o->title, 'test/'.$o->tid), format_date($o->timestamp), l(t('test', '编辑文章'), 'admin/test/edit/' . $o->tid));
     }
-    $output = theme('table', array('标题', '时间'), $table);
+    $output = theme('table', array(t('test', '标题'), t('test', '时间')), $table);
     $output .= pager_view(); // 调用分页
   }
   return $output;

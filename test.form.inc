@@ -1,16 +1,26 @@
 <?php
 // $Id$
 
-function test_node_form() {
-  /**
-   * $form['settings'] 下是是表单的一些参数
-   * $form['fields'] 则为表单字段
-   */
-  
+/**
+ * 节点添加/编辑表单
+ */
+function test_node_form($test = NULL) {
+  $form = array(
+    'fields' => array(), // 表单字段
+    'settings' => array(), // 表单设置参数
+  );
+
   $form['settings'] = array(
     '#ajax_validate' => 1, // 是否ajax验证基本内容，即非必填内容等
     '#validate' => array('test_node_form_validate'), // 调用验证函数
     '#redirect' => url('admin/test'), // 提交成功后跳转地址
+  );
+
+  // 使用 tid 来判断当前为新增还是编辑
+  $form['fields']['tid'] = array(
+    '#type' => 'hidden',
+    '#default_value' => empty($test->tid) ? $test->tid : 0,
+    '#constant' => 1, // 隐藏字段设置此属性，将不允许修改值，防止用户通过修改 html 源代码非法提交
   );
   
   $form['fields']['title'] = array(
@@ -86,42 +96,54 @@ function test_node_form() {
  * @param $form
  *  上面定义的表单
  * @param $v
- *  用户输入的参数，即 $_POST
+ *  用户输入的参数，即 $_POST，其中 object $v['_dida_values'] 是经过处理的值
  */
-function test_node_form_validate($form, $v) {
+function test_node_form_validate(&$form, &$v) {
   // 在这儿验证
   if (mb_strlen($v['title']) > 10) {
     $error['title']['#error'][] = '长度不大于10';
   }
-  
+
+  /**
+   * $v['_dida_values'] 是经过系统预处理的用户提交值，格式为 object，亦即将 $_POST 转换为了 object
+   * 转换为 object 的目的，是为了让提交值在各模式之间传递，方便引用修改，以及统一管理
+   */
+
+  // $test 如果文章在编辑状态，可传递当前文章对象 $test 
+  if (empty($v['_dida_values']->tid)) {
+    $test = test_load($v['_dida_values']->tid);
+  } else {
+    $test = NULL;
+  }
+
   // 下面回调字段验证函数，必须正确指定模块名称和字段组名字
   // 必须传递一个对象
-  $value = (object) $v;
-  // $test 如果文章在编辑状态，应该有 $test
   // 返回错误信息 或 flase
-  $error = field_get_node_validate('test', 'my_field', $value, $test);
+  $error = field_get_node_validate('test', 'my_field', $v['_dida_values'], $test);
     
   // 若返回了错误信息，则验证不通过。反之则通过
   return $error;
 }
 
 // 表单提交回调函数
-function test_node_form_submit($form, $v) {
-  // 插入、更新 用db_exec()
-  if (db_exec('INSERT INTO {test} (title, format, body, timestamp) VALUES (?, ?, ?, ?)',
-    array($v['title'], $v['format'], $v['body'], $_SERVER['REQUEST_TIME']))) {
+function test_node_form_submit(&$form, &$v) {
+  if (!empty($v['_dida_values']->tid)) {
+    // tid 不为空，表示更新记录
+    $args = array('tid'); // 以 tid 为更新条件
+  } else {
+    // 新增记录
+    $args = array();
+    // 设置新增时间
+    $v['_dida_values']->timestamp = $_SERVER['REQUEST_TIME'];
+  }
+
+  // 调用 db_write_record() 保存，也可直接使用 db_exec() 来保存
+  if (db_write_record('test', $v['_dida_values'], $args)) {
     // 创建成功
-    // 保存字段数据，也必须是对象
-    $value = (object) $v;
-    if ($value->tid = db_last_insert_id()) {
-      // 获取上一步操作的id，即 tid
-      
-      // 为了增加 field 的通用性，必须定义一个 nid 参数，nid 应该是唯一的，可以判断节点。
-      $value->nid = $value->tid;
-      
-      // 保存数据，字段数据将与 nid 相关联
-      field_get_node_save('test', 'my_field', $value, $test);
-    }
-    
+    // db_write_recored() 会将插入的主键赋值给 $v['_dida_values']->tid
+    // 为了增加 field 的通用性，field 均以 nid 做为节点主键，以此和节点关系。因此，给 nid 赋值
+    $v['_dida_values']->nid = $v['_dida_values']->tid;
+    // 保存数据，字段数据将与 nid 关联
+    field_get_node_save('test', 'my_field', $v['_dida_values'], $test);
   }
 }

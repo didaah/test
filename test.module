@@ -43,9 +43,18 @@ function test_menu() {
   
   $items['admin/test/add'] = array(
     'title' => '发表文章',
-    'access_arguments' => array('test add'),
+    'access_arguments' => array('admin test add'),
     'page_callback' => 'dd_get_form', // 回调表单
     'page_arguments' => array('test_node_form'),
+    'file' => 'test.form.inc',
+  );
+   
+  $items['admin/test/edit/%'] = array(
+    'title' => '编辑文章',
+    'load_functions' => array(3 => array('test_load')),
+    'access_arguments' => array('admin test edit'),
+    'page_callback' => 'dd_get_form',
+    'page_arguments' => array('test_node_form', 3),
     'file' => 'test.form.inc',
   );
   
@@ -73,9 +82,10 @@ function test_perm() {
    * 这是为了同一个词语在不同模块中可以有不同翻译
    */
   return array(
-    'test add' => t('test', '发表文章'),
-    'admin test list' => t('test', '管理文章'),
     'test view' => t('test', '浏览文章'),
+    'admin test add' => t('test', '发表文章'),
+    'admin test edit' => t('test', '编辑文章'),
+    'admin test list' => t('test', '管理文章'),
     'admin test fields' => t('test', '管理字段')
   );
 }
@@ -126,17 +136,17 @@ function test_field_call_group($type = NULL) {
  * 载入文章
  */
 function test_load($tid) {
-  /**
-   * 数据库连接使用 PDO
-   */
-  if ($test = db_query('SELECT t.*, u.uid, u.name FROM {test} t INNER JOIN {users} u ON t.uid = u.uid WHERE t.tid = ?', array($tid), array('return' => 'one'))) {
-    
-    // 定义一个 nid，用于字段关联
-    $test->nid = $test->tid;
-    
-    // 加载这篇文章下的字段
-    field_get_node_load('test', 'my_field', $test);
-    
-    return $test;
+  static $datas;
+
+  if (!isset($datas[$tid])) {
+    if ($datas[$tid] = db_query('SELECT t.*, u.uid, u.name FROM {test} t INNER JOIN {users} u ON t.uid = u.uid 
+    WHERE t.tid = ?', array($tid), array('return' => 'one'))) {
+      // 定义一个 nid，用于字段关联
+      $datas[$tid]->nid = $tid;
+      // 加载这篇文章下的字段
+      field_get_node_load('test', 'my_field', $datas[$tid]);
+    }
   }
+
+  return $datas[$tid];
 }
